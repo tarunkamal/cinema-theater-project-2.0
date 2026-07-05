@@ -4,7 +4,7 @@ correct_password = "secure123"
 password = input("Enter the password: ")
 if password != correct_password:
     print("Incorrect password. Access denied.")
-    raise SystemExit
+    exit()
 
 print("\nPassword accepted. Welcome to the Theater Booking System!")
 
