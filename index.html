@@ -248,9 +248,36 @@
       font-size: 0.9rem;
     }
 
-    .seats {
+    .tier-group {
       display: grid;
-      grid-template-columns: repeat(8, 1fr);
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .tier-card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .tier-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+
+    .tier-header span {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .tier-seats {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
       gap: 8px;
     }
 
@@ -262,6 +289,7 @@
       color: transparent;
       position: relative;
       transition: 0.2s ease;
+      min-height: 34px;
     }
 
     .seat:hover { transform: scale(1.03); }
@@ -429,7 +457,7 @@
 
         <div class="seat-map">
           <div class="screen">● Screen</div>
-          <div class="seats" id="seatGrid"></div>
+          <div id="seatGrid" class="tier-group"></div>
           <div class="legend">
             <span><i style="background: rgba(255,255,255,0.08);"></i>Available</span>
             <span><i style="background: linear-gradient(135deg, var(--good), #2dd4bf);"></i>Selected</span>
@@ -504,34 +532,56 @@
       });
     }
 
+    function getSeatPrice(id) {
+      if (id <= 16) return 15;
+      if (id <= 40) return 12;
+      return 9;
+    }
+
     function renderSeats() {
       seatGrid.innerHTML = '';
-      for (let i = 1; i <= 48; i++) {
-        const seat = document.createElement('button');
-        seat.className = 'seat';
-        seat.dataset.id = i;
-        if (occupiedSeats.has(i)) seat.classList.add('occupied');
-        seat.addEventListener('click', () => {
-          if (seat.classList.contains('occupied')) return;
-          if (selectedSeats.has(i)) {
-            selectedSeats.delete(i);
-          } else {
-            selectedSeats.add(i);
-          }
-          renderSeats();
-          updateSummary();
+      const tiers = [
+        { title: 'Premium', subtitle: 'Rows 1-2 • $15', ids: Array.from({ length: 16 }, (_, index) => index + 1) },
+        { title: 'Executive', subtitle: 'Rows 3-5 • $12', ids: Array.from({ length: 24 }, (_, index) => index + 17) },
+        { title: 'General', subtitle: 'Rows 6-7 • $9', ids: Array.from({ length: 8 }, (_, index) => index + 41) }
+      ];
+
+      tiers.forEach((tier) => {
+        const tierCard = document.createElement('div');
+        tierCard.className = 'tier-card';
+        tierCard.innerHTML = `<div class="tier-header"><strong>${tier.title}</strong><span>${tier.subtitle}</span></div>`;
+
+        const seatRow = document.createElement('div');
+        seatRow.className = 'tier-seats';
+
+        tier.ids.forEach((id) => {
+          const seat = document.createElement('button');
+          seat.className = 'seat';
+          seat.dataset.id = id;
+          seat.textContent = id;
+          if (occupiedSeats.has(id)) seat.classList.add('occupied');
+          if (selectedSeats.has(id)) seat.classList.add('selected');
+          seat.addEventListener('click', () => {
+            if (seat.classList.contains('occupied')) return;
+            if (selectedSeats.has(id)) {
+              selectedSeats.delete(id);
+            } else {
+              selectedSeats.add(id);
+            }
+            renderSeats();
+            updateSummary();
+          });
+          seatRow.appendChild(seat);
         });
-        seatGrid.appendChild(seat);
-      }
-      selectedSeats.forEach((id) => {
-        const seatEl = seatGrid.querySelector(`[data-id="${id}"]`);
-        if (seatEl) seatEl.classList.add('selected');
+
+        tierCard.appendChild(seatRow);
+        seatGrid.appendChild(tierCard);
       });
     }
 
     function updateSummary() {
       const seatCount = selectedSeats.size;
-      const total = seatCount * selectedMovie.price;
+      const total = Array.from(selectedSeats).reduce((sum, id) => sum + getSeatPrice(id), 0);
       summaryMovie.textContent = selectedMovie.title;
       summaryDate.textContent = dateInput.value || 'Select a date';
       summaryTime.textContent = timeSelect.value;
