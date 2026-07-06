@@ -5,23 +5,42 @@ import webbrowser
 number_of_seats = 150
 correct_password = "secure123"
 
-
+TIER_RULES = {
+    1: ("Premium", 15),
+    2: ("Premium", 15),
+    3: ("Executive", 12),
+    4: ("Executive", 12),
+    5: ("Executive", 12),
+    6: ("General", 9),
+    7: ("General", 9),
+}
 def escape_pdf_text(text):
     return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
-def generate_ticket_pdf(customer_name, seats_booked, ticket_id=None, output_dir=None):
+def calculate_total_price(rows):
+    total = 0
+    for row in rows:
+        if row not in TIER_RULES:
+            raise ValueError(f"Row {row} is not available.")
+        total += TIER_RULES[row][1]
+    return total
+
+
+def generate_ticket_pdf(customer_name, rows_booked, ticket_id=None, output_dir=None):
     ticket_id = ticket_id or f"TKT-{uuid4().hex[:8].upper()}"
     safe_name = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in (customer_name or "guest").strip())
     output_dir = Path(output_dir or Path(__file__).resolve().parent / "tickets")
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{safe_name}_{ticket_id}.pdf"
 
+    total_price = calculate_total_price(rows_booked)
     lines = [
         "THEATER BOOKING TICKET",
         f"Ticket ID: {ticket_id}",
         f"Customer: {customer_name.strip() or 'Guest'}",
-        f"Seats Booked: {seats_booked}",
+        f"Rows Booked: {', '.join(map(str, rows_booked))}",
+        f"Total Price: ${total_price}",
         "Status: Confirmed",
     ]
 
@@ -64,8 +83,8 @@ def generate_ticket_pdf(customer_name, seats_booked, ticket_id=None, output_dir=
     return output_path
 
 
-def generate_and_download_ticket(customer_name, seats_booked, ticket_id=None, output_dir=None):
-    output_path = generate_ticket_pdf(customer_name, seats_booked, ticket_id=ticket_id, output_dir=output_dir)
+def generate_and_download_ticket(customer_name, rows_booked, ticket_id=None, output_dir=None):
+    output_path = generate_ticket_pdf(customer_name, rows_booked, ticket_id=ticket_id, output_dir=output_dir)
     webbrowser.open(output_path.resolve().as_uri())
     return output_path
 
@@ -87,15 +106,20 @@ def main():
         choice = int(input("Enter your choice: "))
 
         if choice == 1:
-            number = int(input("Enter the number of seats to book: "))
-            if number > number_of_seats:
-                print("Invalid choice! Not enough seats available.")
-            else:
-                number_of_seats -= number
+            try:
+                rows_input = input("Enter row numbers to book (e.g. 1,3,6): ")
+                rows = [int(item.strip()) for item in rows_input.split(",") if item.strip()]
+                if not rows:
+                    raise ValueError("No rows selected.")
+                total_price = calculate_total_price(rows)
+                print("Estimated total price = $", total_price)
+                number_of_seats -= len(rows)
                 customer_name = input("Enter your name for the ticket: ").strip() or "Guest"
-                ticket_path = generate_and_download_ticket(customer_name, number)
-                print("Congrats! You have successfully booked", number, "seats.")
+                ticket_path = generate_and_download_ticket(customer_name, rows)
+                print("Congrats! You have successfully booked seats in rows", rows)
                 print("Ticket PDF created at:", ticket_path)
+            except ValueError as error:
+                print("Invalid row selection:", error)
 
         elif choice == 2:
             print("Available seats =", number_of_seats)
