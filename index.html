@@ -495,6 +495,13 @@
       { title: 'Echoes of Rain', genre: 'Romance • 1h 49m', price: 10 }
     ];
 
+    const movieSeatLayout = {
+      'Midnight Aurora': new Set([2, 8, 12, 17, 23, 29, 35, 40, 47]),
+      'Neon City': new Set([3, 7, 13, 18, 24, 31, 37, 43, 46]),
+      'Silver Horizon': new Set([4, 10, 16, 21, 27, 33, 39, 44]),
+      'Echoes of Rain': new Set([5, 9, 15, 22, 28, 34, 41, 48])
+    };
+
     const seatGrid = document.getElementById('seatGrid');
     const movieGrid = document.getElementById('movieGrid');
     const dateInput = document.getElementById('dateInput');
@@ -513,7 +520,7 @@
 
     let selectedMovie = movies[0];
     let selectedSeats = new Set();
-    const occupiedSeats = new Set([2, 8, 12, 17, 23, 29, 35, 40, 47]);
+    let occupiedSeats = new Set(movieSeatLayout[selectedMovie.title]);
 
     function renderMovies() {
       movieGrid.innerHTML = '';
@@ -523,9 +530,14 @@
         card.innerHTML = `<strong>${movie.title}</strong><span>${movie.genre}</span>`;
         card.addEventListener('click', () => {
           selectedMovie = movie;
+          selectedSeats.clear();
+          occupiedSeats = new Set(movieSeatLayout[movie.title] || []);
+          authMessage.style.display = 'none';
+          toast.style.display = 'none';
           summaryMovie.textContent = movie.title;
           document.querySelectorAll('.movie-card').forEach((item) => item.classList.remove('active'));
           card.classList.add('active');
+          renderSeats();
           updateSummary();
         });
         movieGrid.appendChild(card);
