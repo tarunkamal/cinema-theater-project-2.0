@@ -625,6 +625,63 @@
       applyTheme(nextTheme);
     });
 
+    function escapePdfText(text) {
+      return String(text).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+    }
+
+    function generateTicketPdf() {
+      const seatList = Array.from(selectedSeats).sort((a, b) => a - b).join(', ');
+      const total = Array.from(selectedSeats).reduce((sum, id) => sum + getSeatPrice(id), 0);
+      const ticketLines = [
+        'NOVA CINEMA TICKET',
+        '=================',
+        `Movie: ${selectedMovie.title}`,
+        `Date: ${dateInput.value || 'Not selected'}`,
+        `Time: ${timeSelect.value}`,
+        `Seats: ${seatList || 'None'}`,
+        `Total: $${total}`,
+        'Status: Confirmed'
+      ];
+
+      let contentStream = 'BT\n';
+      let yPosition = 760;
+      ticketLines.forEach((line) => {
+        const safeLine = escapePdfText(line);
+        contentStream += `/F1 12 Tf 50 ${yPosition} Td (${safeLine}) Tj T*\n`;
+        yPosition -= 16;
+      });
+      contentStream += 'ET';
+
+      const objects = [
+        '<< /Type /Catalog /Pages 2 0 R >>',
+        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+        `<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream`,
+        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
+      ];
+
+      let pdfData = '%PDF-1.4\n';
+      const offsets = [0];
+
+      objects.forEach((obj, index) => {
+        offsets.push(pdfData.length);
+        pdfData += `${index + 1} 0 obj\n${obj}\nendobj\n`;
+      });
+
+      const xrefOffset = pdfData.length;
+      pdfData += `xref\n0 ${objects.length + 1}\n`;
+      pdfData += '0000000000 65535 f \n';
+      offsets.slice(1).forEach((offset) => {
+        pdfData += `${offset.toString().padStart(10, '0')} 00000 n \n`;
+      });
+      pdfData += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+
+      const blob = new Blob([pdfData], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+
     function showConfirmation() {
       const seatCount = selectedSeats.size;
       modalMessage.textContent = `Your ${seatCount} seat${seatCount > 1 ? 's' : ''} for ${selectedMovie.title} on ${dateInput.value || 'your selected date'} at ${timeSelect.value} have been successfully reserved.`;
@@ -651,6 +708,7 @@
         return;
       }
       showConfirmation();
+      generateTicketPdf();
       authMessage.style.display = 'block';
       toast.textContent = `Booking confirmed for ${selectedSeats.size} seat(s)! Enjoy the show.`;
       toast.style.display = 'block';
