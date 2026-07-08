@@ -496,10 +496,26 @@
     ];
 
     const movieSeatLayout = {
-      'Midnight Aurora': new Set([2, 8, 12, 17, 23, 29, 35, 40, 47]),
-      'Neon City': new Set([3, 7, 13, 18, 24, 31, 37, 43, 46]),
-      'Silver Horizon': new Set([4, 10, 16, 21, 27, 33, 39, 44]),
-      'Echoes of Rain': new Set([5, 9, 15, 22, 28, 34, 41, 48])
+      'Midnight Aurora': [
+        new Set([2, 8, 12, 17, 23, 29, 35, 40, 47]),
+        new Set([3, 9, 13, 18, 24, 30, 36, 41, 48]),
+        new Set([4, 10, 14, 19, 25, 31, 37, 42, 45])
+      ],
+      'Neon City': [
+        new Set([3, 7, 13, 18, 24, 31, 37, 43, 46]),
+        new Set([2, 6, 12, 17, 22, 29, 35, 40, 47]),
+        new Set([5, 11, 16, 21, 27, 33, 39, 44])
+      ],
+      'Silver Horizon': [
+        new Set([4, 10, 16, 21, 27, 33, 39, 44]),
+        new Set([1, 6, 11, 15, 20, 26, 32, 38]),
+        new Set([7, 8, 14, 19, 23, 28, 34, 41])
+      ],
+      'Echoes of Rain': [
+        new Set([5, 9, 15, 22, 28, 34, 41, 48]),
+        new Set([2, 8, 12, 17, 23, 29, 35, 40]),
+        new Set([3, 7, 13, 18, 24, 30, 36, 42])
+      ]
     };
 
     const seatGrid = document.getElementById('seatGrid');
@@ -520,7 +536,7 @@
 
     let selectedMovie = movies[0];
     let selectedSeats = new Set();
-    let occupiedSeats = new Set(movieSeatLayout[selectedMovie.title]);
+    let occupiedSeats = new Set(movieSeatLayout[selectedMovie.title][timeSelect.selectedIndex]);
 
     function renderMovies() {
       movieGrid.innerHTML = '';
@@ -530,8 +546,9 @@
         card.innerHTML = `<strong>${movie.title}</strong><span>${movie.genre}</span>`;
         card.addEventListener('click', () => {
           selectedMovie = movie;
+          // clear any prior selections when switching films
           selectedSeats.clear();
-          occupiedSeats = new Set(movieSeatLayout[movie.title] || []);
+          occupiedSeats = new Set((movieSeatLayout[movie.title] || [new Set(), new Set(), new Set()])[timeSelect.selectedIndex]);
           authMessage.style.display = 'none';
           toast.style.display = 'none';
           summaryMovie.textContent = movie.title;
@@ -625,19 +642,34 @@
       applyTheme(nextTheme);
     });
 
+    // update occupied seats when the time/screen selection changes
+    timeSelect.addEventListener('change', () => {
+      occupiedSeats = new Set((movieSeatLayout[selectedMovie.title] || [new Set(), new Set(), new Set()])[timeSelect.selectedIndex]);
+      // clear any selected seats when switching screens
+      selectedSeats.clear();
+      authMessage.style.display = 'none';
+      toast.style.display = 'none';
+      renderSeats();
+      updateSummary();
+    });
+
     function escapePdfText(text) {
       return String(text).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
     }
 
     function generateTicketPdf() {
       const seatList = Array.from(selectedSeats).sort((a, b) => a - b).join(', ');
+      const seatCount = selectedSeats.size;
       const total = Array.from(selectedSeats).reduce((sum, id) => sum + getSeatPrice(id), 0);
+      const bookingDate = new Date().toLocaleString();
       const ticketLines = [
         'NOVA CINEMA TICKET',
-        '=================',
+        '------------------',
         `Movie: ${selectedMovie.title}`,
-        `Date: ${dateInput.value || 'Not selected'}`,
-        `Time: ${timeSelect.value}`,
+        `Booking Date: ${bookingDate}`,
+        `Show Date: ${dateInput.value || 'Not selected'}`,
+        `Show Time: ${timeSelect.value}`,
+        `Number of Seats: ${seatCount}`,
         `Seats: ${seatList || 'None'}`,
         `Total: $${total}`,
         'Status: Confirmed'
@@ -652,11 +684,15 @@
       });
       contentStream += 'ET';
 
+      // compute byte length of content stream
+      const encoder = new TextEncoder();
+      const contentBytes = encoder.encode(contentStream);
+
       const objects = [
         '<< /Type /Catalog /Pages 2 0 R >>',
         '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
         '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
-        `<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream`,
+        `<< /Length ${contentBytes.length} >>\nstream\n${contentStream}\nendstream`,
         '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
       ];
 
@@ -676,7 +712,7 @@
       });
       pdfData += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
 
-      const blob = new Blob([pdfData], { type: 'application/pdf' });
+      const blob = new Blob([encoder.encode(pdfData)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank', 'noopener,noreferrer');
       setTimeout(() => URL.revokeObjectURL(url), 10000);
